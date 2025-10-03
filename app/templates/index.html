@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title> CRM OrbisAI - Atencion al Cliente Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="h-screen flex flex-col md:flex-row bg-gray-100 text-gray-800 font-sans">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col">
+        <!-- Header -->
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-emerald-600">Chats</h2>
+        </div>
+
+        <!-- Search -->
+        <div class="p-3 border-b border-gray-200">
+            <input id="buscarContacto" onkeyup="filtrarContactos()" placeholder="Buscar o iniciar chat"
+                class="w-full px-4 py-2 rounded-full bg-gray-100 text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
+        </div>
+
+        <!-- Lista de contactos -->
+        <ul id="listaContactos" class="flex-1 overflow-y-auto"></ul>
+
+        <!-- Dashboard -->
+        <div class="p-4 border-t border-gray-200 bg-gray-50">
+            <p class="text-xs text-gray-500">Conversaciones activas</p>
+            <p id="totalConversaciones" class="text-lg font-bold text-emerald-600">0</p>
+            <p class="text-xs text-gray-500 mt-2">Promedio respuesta (s)</p>
+            <p id="tiempoPromedio" class="text-lg font-bold text-sky-600">0</p>
+            <p class="text-xs text-gray-500 mt-2">Último mensaje</p>
+            <p id="ultimoMensaje" class="text-sm text-purple-600 truncate">---</p>
+        </div>
+    </aside>
+
+    <!-- Área principal -->
+    <main class="flex-1 flex flex-col bg-gray-50">
+        <!-- Header Chat -->
+        <header
+            class="p-4 bg-white border-b border-gray-200 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+            <h2 id="nombreChat" class="font-semibold text-lg text-gray-700">Selecciona un chat</h2>
+            <button onclick="cerrarChat()"
+                class="md:hidden px-3 py-1 rounded-lg text-xs bg-red-500 text-white hover:bg-red-600 transition">Cerrar</button>
+        </header>
+
+        <!-- Chat -->
+        <div id="chatMensajes" class="flex-1 p-6 overflow-y-auto space-y-4 bg-gray-100" style="background-image: url('/static/img/logo.png'); 
+            background-repeat: no-repeat; 
+            background-position: center; 
+            background-size: 150px;">></div>
+
+        <!-- Footer -->
+        <footer
+            class="p-4 bg-white border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between text-sm text-gray-500">
+            <p class="flex items-center gap-2">
+                🚀 Desarrollado por
+                <a href="https://www.instagram.com/yksogeid.dev/" target="_blank"
+                    class="font-semibold text-emerald-600 hover:text-emerald-700 transition">
+                    Yksogeid Developer
+                </a>
+            </p>
+            <div class="flex gap-4 mt-2 sm:mt-0">
+                <a href="#" class="hover:text-emerald-600 transition">📄 Documentación</a>
+                <a href="#" class="hover:text-emerald-600 transition">🔒 Privacidad</a>
+                <a href="#" class="hover:text-emerald-600 transition">💬 Soporte</a>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        let conversaciones = {};
+        let chatActivo = null;
+
+        async function cargarConversaciones() {
+            const res = await fetch("/conversaciones_agrupadas");
+            conversaciones = await res.json();
+            renderContactos();
+            actualizarDashboard();
+            if (chatActivo) {
+                renderMensajes(chatActivo);
+            }
+        }
+
+        function renderContactos() {
+            const lista = document.getElementById("listaContactos");
+            lista.innerHTML = "";
+            for (let telefono in conversaciones) {
+                const ultimo = conversaciones[telefono][conversaciones[telefono].length - 1];
+                const li = document.createElement("li");
+                li.className = "p-4 cursor-pointer hover:bg-gray-50 flex items-center gap-3 contacto-item border-b border-gray-100";
+                li.setAttribute("data-filtro", (ultimo.nombre || "") + " " + telefono);
+                li.innerHTML = `
+          <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold">
+            ${ultimo.nombre ? ultimo.nombre[0].toUpperCase() : "?"}
+          </div>
+          <div class="flex-1 overflow-hidden">
+            <p class="font-medium">${ultimo.nombre || "Sin nombre"}</p>
+            <p class="text-xs text-gray-500 truncate">${ultimo.pregunta || ultimo.respuesta || ""}</p>
+          </div>
+          <span class="text-xs text-gray-400">${ultimo.horaMensajeRespuesta}</span>
+        `;
+                li.onclick = () => abrirChat(telefono);
+                lista.appendChild(li);
+            }
+        }
+
+        function abrirChat(telefono) {
+            chatActivo = telefono;
+            document.getElementById("nombreChat").innerText = conversaciones[telefono][0].nombre + " (" + telefono + ")";
+            renderMensajes(telefono);
+        }
+
+        function cerrarChat() {
+            chatActivo = null;
+            document.getElementById("chatMensajes").innerHTML = "";
+            document.getElementById("nombreChat").innerText = "Selecciona un chat";
+        }
+
+        function renderMensajes(telefono) {
+            const area = document.getElementById("chatMensajes");
+            area.innerHTML = "";
+            conversaciones[telefono].forEach(msg => {
+                if (msg.pregunta) {
+                    const humanoDiv = document.createElement("div");
+                    humanoDiv.className = "flex justify-start";
+                    humanoDiv.innerHTML = `
+            <div class="max-w-xs bg-white p-3 rounded-lg shadow text-sm">
+              <p>${msg.pregunta}</p>
+              <span class="block text-[10px] text-gray-400 text-right mt-1">${msg.horaMensajeRecibido}</span>
+            </div>
+          `;
+                    area.appendChild(humanoDiv);
+                }
+                if (msg.respuesta) {
+                    const iaDiv = document.createElement("div");
+                    iaDiv.className = "flex justify-end";
+                    iaDiv.innerHTML = `
+            <div class="max-w-xs bg-emerald-500 text-white p-3 rounded-lg shadow text-sm">
+              <p>${msg.respuesta}</p>
+              <span class="block text-[10px] text-gray-100 text-right mt-1">${msg.horaMensajeRespuesta}</span>
+            </div>
+          `;
+                    area.appendChild(iaDiv);
+                }
+            });
+            area.scrollTop = area.scrollHeight;
+        }
+
+        function actualizarDashboard() {
+            const total = Object.keys(conversaciones).length;
+            document.getElementById("totalConversaciones").innerText = total;
+
+            let ultimoMsg = null;
+            for (let tel in conversaciones) {
+                const msgs = conversaciones[tel];
+                if (msgs.length > 0) {
+                    const ult = msgs[msgs.length - 1];
+                    if (!ultimoMsg || new Date(ult.timestamp) > new Date(ultimoMsg.timestamp)) {
+                        ultimoMsg = ult;
+                    }
+                }
+            }
+            document.getElementById("ultimoMensaje").innerText = ultimoMsg ? (ultimoMsg.pregunta || ultimoMsg.respuesta) : "---";
+
+            let tiempos = [];
+            for (let tel in conversaciones) {
+                const msgs = conversaciones[tel];
+                for (let i = 0; i < msgs.length - 1; i++) {
+                    if (msgs[i].pregunta && msgs[i + 1].respuesta) {
+                        const t1 = new Date(msgs[i].timestamp);
+                        const t2 = new Date(msgs[i + 1].timestamp);
+                        tiempos.push((t2 - t1) / 1000);
+                    }
+                }
+            }
+            const promedio = tiempos.length ? (tiempos.reduce((a, b) => a + b, 0) / tiempos.length).toFixed(1) : 0;
+            document.getElementById("tiempoPromedio").innerText = promedio;
+        }
+
+        function filtrarContactos() {
+            const filtro = document.getElementById("buscarContacto").value.toLowerCase();
+            const items = document.querySelectorAll(".contacto-item");
+            let encontrados = 0;
+            items.forEach(item => {
+                const texto = item.getAttribute("data-filtro").toLowerCase();
+                if (texto.includes(filtro)) {
+                    item.style.display = "flex";
+                    encontrados++;
+                } else {
+                    item.style.display = "none";
+                }
+            });
+
+            let mensajeNoEncontrado = document.getElementById("noEncontradoMsg");
+            if (!mensajeNoEncontrado) {
+                mensajeNoEncontrado = document.createElement("li");
+                mensajeNoEncontrado.id = "noEncontradoMsg";
+                mensajeNoEncontrado.className = "p-4 text-center text-gray-400";
+                mensajeNoEncontrado.innerText = "No se encontro ningun chat.";
+                document.getElementById("listaContactos").appendChild(mensajeNoEncontrado);
+            }
+            mensajeNoEncontrado.style.display = encontrados === 0 ? "block" : "none";
+        }
+
+        setInterval(cargarConversaciones, 3000);
+        cargarConversaciones();
+    </script>
+</body>
+
+</html>
